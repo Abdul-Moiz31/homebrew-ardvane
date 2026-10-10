@@ -1,8 +1,8 @@
 class Ardvane < Formula
   desc "Protects developers from malware that spreads through code"
   homepage "https://github.com/Abdul-Moiz31/ardvane"
-  url "https://github.com/Abdul-Moiz31/ardvane/archive/refs/tags/v0.1.0.tar.gz"
-  sha256 "549e06b6ef8f010091d79b067e731ad7ad0c37b25990bde5c17a82f3a261c8b4"
+  url "https://github.com/Abdul-Moiz31/ardvane/archive/refs/tags/v0.2.0.tar.gz"
+  sha256 "140de7ddbded8a0f584edf6b095b874e0d594e0224573724433c44fd474e9f3f"
   license "MIT"
 
   depends_on "python@3.14"
