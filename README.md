@@ -10,6 +10,9 @@ ardvane
 ```
 
 Update with `brew upgrade ardvane`. The formula follows Ardvane's releases automatically: a workflow checks for a new
-release every few hours, installs it on a real Mac to make sure it works, and only then updates the formula.
+release every few hours and accepts it only if its source archive is signed by Ardvane's own release workflow on
+`main` (GitHub build provenance) and the version goes up. It then installs exactly that formula on a real Mac, checks
+that it runs and reports the right version, and only then updates the formula. A release made any other way, for
+example with a stolen token, is refused.
 
 Not on a Mac? `pipx install ardvane` works on macOS, Linux and Windows.

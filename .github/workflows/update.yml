@@ -1,36 +1,75 @@
 name: update
 
 # Keeps Formula/ardvane.rb on the latest Ardvane release. Every few hours (and on demand) it checks for a new release,
-# updates the url and sha256, installs the formula on a real Mac to make sure it works, and only then commits it.
+# accepts it only if its source archive is signed by Ardvane's release workflow on main and the version goes up,
+# installs exactly that formula on a real Mac and checks the version, and only then commits it.
+#
+# The job that downloads and runs the new release can read this repository but not write to it; a separate job that
+# runs nothing from the release commits the checked formula. Actions are pinned to full commit hashes.
 on:
   schedule:
     - cron: "23 */4 * * *"
   workflow_dispatch:
 
-permissions:
-  contents: write          # commit the updated formula to this repository; nothing else
+permissions: {}
+
+concurrency:
+  group: update
+  cancel-in-progress: false
 
 jobs:
-  update:
+  check:
     runs-on: macos-latest
+    permissions:
+      contents: read
+      attestations: read
+    outputs:
+      version: ${{ steps.update.outputs.version }}
     steps:
-      - uses: actions/checkout@v7
-      - name: Point the formula at the latest release
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Point the formula at the latest signed release
         id: update
-        run: echo "tag=$(python3 .github/scripts/update_formula.py)" >> "$GITHUB_OUTPUT"
-      - name: Install it on this Mac and run it
-        if: steps.update.outputs.tag != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: echo "version=$(python3 .github/scripts/update_formula.py)" >> "$GITHUB_OUTPUT"
+      - name: Install exactly this formula on this Mac and run it
+        if: steps.update.outputs.version != ''
+        env:
+          VERSION: ${{ steps.update.outputs.version }}
         run: |
           brew tap abdul-moiz31/ardvane "$GITHUB_WORKSPACE"
+          # the tap is a clone of the last commit: put the updated, not yet committed formula into it
+          cp Formula/ardvane.rb "$(brew --repository abdul-moiz31/ardvane)/Formula/ardvane.rb"
           brew install abdul-moiz31/ardvane/ardvane
-          ardvane --version
+          ardvane --version | tee /dev/stderr | grep -qx "Ardvane $VERSION"
           brew test abdul-moiz31/ardvane/ardvane
+      - name: Hand the checked formula to the commit job
+        if: steps.update.outputs.version != ''
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: formula
+          path: Formula/ardvane.rb
+          retention-days: 1
+
+  commit:
+    needs: check
+    if: needs.check.outputs.version != ''
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write        # commit the updated formula to this repository; nothing else
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: formula
+          path: Formula
       - name: Commit the new version
-        if: steps.update.outputs.tag != ''
         env:
-          TAG: ${{ steps.update.outputs.tag }}
+          VERSION: ${{ needs.check.outputs.version }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -am "ardvane ${TAG#v}"
+          git commit -am "ardvane $VERSION"
           git push
